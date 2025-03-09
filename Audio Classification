@@ -1,0 +1,64 @@
+import tensorflow as tf
+import tensorflow_hub as hub
+import librosa
+import numpy as np
+import os
+
+model = hub.load('https://tfhub.dev/google/yamnet/1')
+
+!wget https://raw.githubusercontent.com/tensorflow/models/master/research/audioset/yamnet/yamnet_class_map.csv -O yamnet_class_map.csv
+
+# Load the class map file
+class_map_path = 'yamnet_class_map.csv' # Use the downloaded file
+class_names = np.loadtxt(class_map_path, delimiter=',', dtype=str, usecols=2)
+# Function to preprocess and classify audio
+def classify_audio(file_path):
+    # Load audio using librosa
+    audio, sample_rate = librosa.load(file_path, sr=16000)  # YAMNet expects 16 kHz audio
+    audio = np.reshape(audio, (1, -1))  # Reshape for YAMNet model
+        # Reshape the audio to a 1D array
+    audio = audio.flatten() # or audio.reshape(-1)
+    # Run inference with YAMNet
+    scores, embeddings, spectrogram = model(audio)
+
+    # Aggregate scores over time to get a single prediction per class
+    mean_scores = tf.reduce_mean(scores, axis=0).numpy()
+
+    # Get the top class
+    top_class = np.argmax(mean_scores)
+    top_class_name = class_names[top_class]
+    confidence = mean_scores[top_class]
+
+    return top_class_name, confidence
+
+
+# Classify all audio files in the directories
+def classify_all_audios(audio_dir, label):
+    results = []
+    for filename in os.listdir(audio_dir):
+        if filename.endswith(".wav"):  # Check for .wav files
+            file_path = os.path.join(audio_dir, filename)  # Assign file_path here
+
+            # Load audio using librosa
+            audio, sample_rate = librosa.load(file_path, sr=16000)  # YAMNet expects 16 kHz audio
+
+            # Flatten the audio array to 1D
+            audio = audio.flatten()  # Reshape to (num_samples,)
+
+            # Run inference with YAMNet
+            scores, embeddings, spectrogram = model(audio)
+
+            top_class_name, confidence = classify_audio(file_path)
+            results.append((filename, label, top_class_name, confidence))
+            print(f"File: {filename} | True Label: {label} | Predicted: {top_class_name} | Confidence: {confidence:.2f}")
+    return results
+
+
+# Classify real and fake audio
+real_results = classify_all_audios(real_audio_dir, label='Real')
+fake_results = classify_all_audios(fake_audio_dir, label='Fake')
+
+# Combine and display results
+all_results = real_results + fake_results
+for result in all_results:
+    print(result)
