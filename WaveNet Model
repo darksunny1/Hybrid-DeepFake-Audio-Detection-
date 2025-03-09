@@ -11,3 +11,9 @@ def build_wavenet_model(input_shape):
 
 wavenet_model = build_wavenet_model((SR * DURATION, 1))
 wavenet_model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+
+# Train WaveNet model
+wavenet_model.fit(
+    X_wavenet_train[..., np.newaxis], y_train,
+    validation_split=0.2, epochs=30, batch_size=32
+)
