@@ -1,0 +1,8 @@
+Abstract
+
+The detection of fake audio, commonly referred to as deepfake audio detection, has emerged as a crucial task amidst the advancements in artificial intelligence-driven audio manipulation.
+This paper presents a novel hybrid model that integrates WaveNet and Deep4SNet, two powerful deep learning methodologies, to accurately classify and detect real and fake audio recordings.
+WaveNet directly processes raw audio to capture intricate sound patterns, while Deep4SNet leverages spectrograms to extract essential frequency features. By combining these approaches,
+our system leverages both time and frequency information, enhanced through a mathematical fusion layer, to improve accuracy and reliability. Experimental results on a dataset comprising 
+real and fake audio files demonstrate the effectiveness of our approach, achieving over 90% accuracy in detecting fake audio. Performance was rigorously evaluated using confusion matrices, AROC curves,
+and cross-validation, confirming the model's robustness across different audio manipulations. This hybrid method offers a promising solution for identifying fake audio, thereby bolstering trust in digital communication.
