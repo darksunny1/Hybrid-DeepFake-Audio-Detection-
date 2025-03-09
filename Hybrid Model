@@ -1,0 +1,25 @@
+def build_hybrid_model(wavenet_model, deep4snet_model):
+    # Inputs
+    wavenet_input = wavenet_model.input
+    deep4snet_input = deep4snet_model.input
+
+    # Combine features from both models
+    wavenet_features = wavenet_model.output
+    deep4snet_features = deep4snet_model.output
+    combined = layers.Concatenate()([wavenet_features, deep4snet_features])
+
+    # Add final classification layers
+    x = layers.Dense(64, activation='relu')(combined)
+    x = layers.Dropout(0.3)(x)
+    outputs = layers.Dense(2, activation='softmax')(x)
+
+    return models.Model([wavenet_input, deep4snet_input], outputs)
+
+hybrid_model = build_hybrid_model(wavenet_model, deep4snet_model)
+hybrid_model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+
+hybrid_model.fit(
+    [X_wavenet_train[..., np.newaxis], X_deep4snet_train[..., np.newaxis]],
+    y_train,
+    validation_split=0.2, epochs=30, batch_size=32
+)
