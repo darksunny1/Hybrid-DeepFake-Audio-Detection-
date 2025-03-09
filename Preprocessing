@@ -1,0 +1,56 @@
+import os
+import librosa
+import numpy as np
+from sklearn.model_selection import train_test_split
+from tensorflow.keras.utils import to_categorical
+
+# Parameters
+SR = 16000  # Sampling rate
+DURATION = 2  # Duration of audio clips in seconds
+N_MELS = 128  # Number of mel bands
+FIXED_WIDTH = 128  # Spectrogram width
+
+# Preprocessing for WaveNet (raw audio)
+def preprocess_audio_wavenet(file_path, sr=SR, duration=DURATION):
+    y, _ = librosa.load(file_path, sr=sr, duration=duration)
+    signal = librosa.util.fix_length(y, size=sr * duration)
+    return signal
+# Preprocessing for Deep4SNet (spectrograms)
+def preprocess_audio_deep4snet(file_path, sr=SR, duration=DURATION):
+    y, _ = librosa.load(file_path, sr=sr, duration=duration)
+    S = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=N_MELS)
+    S_db = librosa.power_to_db(S, ref=np.max)
+    return np.resize(S_db, (N_MELS, FIXED_WIDTH))
+
+# Load dataset
+def load_dataset(original_path, fake_path):
+    wavenet_inputs, deep4snet_inputs, labels = [], [], []
+
+    for label, folder in enumerate([original_path, fake_path]):  # 0 for real, 1 for fake
+        for filename in os.listdir(folder):
+            if filename.endswith('.wav'):
+                file_path = os.path.join(folder, filename)
+                # Preprocess audio
+                wavenet_inputs.append(preprocess_audio_wavenet(file_path))
+                deep4snet_inputs.append(preprocess_audio_deep4snet(file_path))
+                labels.append(label)
+
+    return np.array(wavenet_inputs), np.array(deep4snet_inputs), np.array(labels)
+
+
+
+# Load and preprocess data
+wavenet_inputs, deep4snet_inputs, labels = load_dataset(real_audio_dir, fake_audio_dir)
+
+# Normalize inputs
+wavenet_inputs = wavenet_inputs / np.max(np.abs(wavenet_inputs))
+deep4snet_inputs = deep4snet_inputs / np.max(np.abs(deep4snet_inputs))
+
+# Train-test split
+X_wavenet_train, X_wavenet_test, X_deep4snet_train, X_deep4snet_test, y_train, y_test = train_test_split(
+    wavenet_inputs, deep4snet_inputs, labels, test_size=0.2, random_state=42
+)
+
+# Convert labels to categorical
+y_train = to_categorical(y_train, num_classes=2)
+y_test = to_categorical(y_test, num_classes=2)
