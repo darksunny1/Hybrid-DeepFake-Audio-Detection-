@@ -1,0 +1,152 @@
+import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, roc_curve, auc
+import numpy as np
+
+test_loss, test_accuracy = hybrid_model.evaluate(
+    [X_wavenet_test[..., np.newaxis], X_deep4snet_test[..., np.newaxis]],
+    y_test
+)
+print(f"Hybrid Model Test Accuracy: {test_accuracy:.2f}")
+
+
+# Generate predictions
+y_pred_probs = hybrid_model.predict([X_wavenet_test[..., np.newaxis], X_deep4snet_test[..., np.newaxis]])
+y_pred_classes = np.argmax(y_pred_probs, axis=1)
+
+# True labels
+y_true = np.argmax(y_test, axis=1)
+# Compute confusion matrix
+cm = confusion_matrix(y_true, y_pred_classes)
+
+# Plot confusion matrix
+disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=['Real', 'Fake'])
+disp.plot(cmap=plt.cm.Blues, values_format='d')
+plt.title('Confusion Matrix')
+plt.show()
+
+# Compute ROC curve and AUC for each class
+fpr, tpr, _ = roc_curve(y_test[:, 1], y_pred_probs[:, 1])  # For the "Fake" class
+roc_auc = auc(fpr, tpr)
+
+# Plot AROC curve
+plt.figure(figsize=(8, 6))
+plt.plot(fpr, tpr, color='blue', label=f'ROC Curve (AUC = {roc_auc:.2f})')
+plt.plot([0, 1], [0, 1], color='gray', linestyle='--')  # Diagonal line for random classifier
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Receiver Operating Characteristic (ROC) Curve')
+plt.legend(loc='lower right')
+plt.grid()
+plt.show()
+
+#Precision-Recall (PR) Curve
+from sklearn.metrics import precision_recall_curve
+
+# Compute Precision-Recall curve for the "Fake" class
+precision, recall, _ = precision_recall_curve(y_test[:, 1], y_pred_probs[:, 1])
+
+# Plot the PR curve
+plt.figure(figsize=(8, 6))
+plt.plot(recall, precision, marker='.', color='purple')
+plt.xlabel('Recall')
+plt.ylabel('Precision')
+plt.title('Precision-Recall Curve')
+plt.grid()
+plt.show()
+
+
+#Calibration Curve
+from sklearn.calibration import calibration_curve
+
+# Calculate calibration curve
+prob_true, prob_pred = calibration_curve(y_test[:, 1], y_pred_probs[:, 1], n_bins=10)
+
+# Plot the calibration curve
+plt.figure(figsize=(8, 6))
+plt.plot(prob_pred, prob_true, marker='o', label='Model')
+plt.plot([0, 1], [0, 1], linestyle='--', label='Perfect Calibration', color='gray')
+plt.xlabel('Predicted Probability')
+plt.ylabel('True Probability')
+plt.title('Calibration Curve')
+plt.legend()
+plt.grid()
+plt.show()
+
+#Cross-Validation Analysis
+import numpy as np
+from sklearn.model_selection import StratifiedKFold
+from tensorflow.keras.models import clone_model  # Import clone_model
+
+# Define the cross-validation scheme
+kfold = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+
+# Combine training and testing data for cross-validation
+X_wavenet = np.concatenate([X_wavenet_train, X_wavenet_test])
+X_deep4snet = np.concatenate([X_deep4snet_train, X_deep4snet_test])
+# Reshape to match expected input shape for hybrid model
+X_wavenet = X_wavenet[..., np.newaxis]
+X_deep4snet = X_deep4snet[..., np.newaxis]
+
+y = np.concatenate([y_train, y_test])  # Combine labels
+
+# Convert y to a 1D array of labels if it's one-hot encoded
+y = np.argmax(y, axis=1)
+
+# Create a list of tuples, where each tuple contains the inputs for one sample
+combined_X = list(zip(X_wavenet, X_deep4snet))
+
+# Function to perform cross-validation for Keras models
+def cross_val_keras(model, X, y, cv):
+    scores = []
+    for train_index, test_index in cv.split(X, y):
+        # Create a clone of the model for each fold
+        cloned_model = clone_model(model)
+        cloned_model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+
+        # Get data for the current fold
+        X_train_fold_wavenet = [X[i][0] for i in train_index]
+        X_train_fold_deep4snet = [X[i][1] for i in train_index]
+        X_test_fold_wavenet = [X[i][0] for i in test_index]
+        X_test_fold_deep4snet = [X[i][1] for i in test_index]
+        y_train_fold = y[train_index]
+        y_test_fold = y[test_index]
+
+        # Convert labels to categorical if necessary
+        y_train_fold = to_categorical(y_train_fold, num_classes=2)
+        y_test_fold = to_categorical(y_test_fold, num_classes=2)
+
+        # Train the cloned model
+        cloned_model.fit(
+            [np.array(X_train_fold_wavenet), np.array(X_train_fold_deep4snet)],
+            y_train_fold,
+            epochs=30,
+            batch_size=32,
+            verbose=0  # Set to 0 to suppress training output
+        )
+
+        # Evaluate the model
+        _, accuracy = cloned_model.evaluate(
+            [np.array(X_test_fold_wavenet), np.array(X_test_fold_deep4snet)],
+            y_test_fold,
+            verbose=0  # Set to 0 to suppress evaluation output
+        )
+        scores.append(accuracy)
+
+    return scores
+
+# Perform cross-validation
+scores = cross_val_keras(hybrid_model, combined_X, y, kfold)
+
+print(f"Cross-Validation Accuracy: {np.mean(scores):.4f} ± {np.std(scores):.4f}")
+
+# Plot training and validation loss
+plt.plot(history.history['loss'], label='Training Loss')
+plt.plot(history.history['val_loss'], label='Validation Loss')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.title('Training and Validation Loss Curve')
+plt.legend()
+plt.grid()
+plt.show()
+
+print(f"Cross-Validation Accuracy: {np.mean(scores):.4f} ± {np.std(scores):.4f}")
