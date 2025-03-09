@@ -1,0 +1,18 @@
+def build_deep4snet_model(input_shape):
+    inputs = layers.Input(shape=input_shape)
+    x = layers.Conv2D(32, (3, 3), activation='relu', padding='same')(inputs)
+    x = layers.MaxPooling2D((2, 2))(x)
+    x = layers.Conv2D(64, (3, 3), activation='relu', padding='same')(x)
+    x = layers.GlobalAveragePooling2D()(x)
+    x = layers.Dense(64, activation='relu')(x)
+    outputs = layers.Dense(2, activation='softmax')(x)
+    return models.Model(inputs, outputs)
+
+deep4snet_model = build_deep4snet_model((N_MELS, FIXED_WIDTH, 1))
+deep4snet_model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+
+# Train Deep4SNet model
+deep4snet_model.fit(
+    X_deep4snet_train[..., np.newaxis], y_train,
+    validation_split=0.2, epochs=30, batch_size=32
+)
